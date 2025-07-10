@@ -1,0 +1,10 @@
+{# templates/messages.html #}
+{% if messages %}
+    <ul class="message-container">
+        {% for message in messages %}
+            <li{% if message.tags %} class="message {{ message.tags }}"{% endif %}>
+                {{ message }}
+            </li>
+        {% endfor %}
+    </ul>
+{% endif %}
