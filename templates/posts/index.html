@@ -1,0 +1,97 @@
+
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KKSD</title>
+    <style>
+        body { font-family: sans-serif; margin: 20px; background-color: #f4f7f6; color: #333; }
+        .container { max-width: 800px; margin: auto; background-color: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        h1 { color: #007bff; text-align: center; margin-bottom: 20px; }
+        .message-container { margin-bottom: 20px; }
+        .message { padding: 10px; border-radius: 5px; margin-bottom: 10px; }
+        .message.success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .message.error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .post-form { margin-bottom: 30px; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px; background-color: #f9f9f9; }
+        .post-form label { display: block; margin-bottom: 8px; font-weight: bold; }
+        .post-form input[type="text"], .post-form textarea { width: calc(100% - 20px); padding: 10px; margin-bottom: 15px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+        .post-form textarea { min-height: 100px; resize: vertical; }
+        .post-form button { padding: 10px 20px; background-color: #28a745; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 1em; }
+        .post-form button:hover { background-color: #218838; }
+        .post-list { border-top: 1px solid #eee; padding-top: 20px; }
+        .post { border: 1px solid #e0e0e0; padding: 15px; margin-bottom: 20px; border-radius: 8px; background-color: #fff; }
+        .post h2 { margin-top: 0; color: #333; font-size: 1.3em; }
+        .post-meta { font-size: 0.9em; color: #666; margin-bottom: 10px; }
+        .post-author { font-weight: bold; }
+        .post-date { margin-left: 10px; }
+        .post-content { line-height: 1.6; white-space: pre-wrap; word-wrap: break-word; } /* 改行と長文対応 */
+        .auth-links { text-align: right; margin-bottom: 10px; }
+        .auth-links a { margin-left: 10px; color: #007bff; text-decoration: none; }
+        .auth-links a:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="auth-links">
+            {% if user.is_authenticated %}
+                <p>ようこそ, {{ user.username }}！ (<span style="color: {{ user.id_color }};">{{ user.permission_level }}</span>)</p>
+                <a href="{% url 'users:logout' %}">ログアウト</a>
+                {% if user.is_superuser %}
+                    <a href="{% url 'admin:index' %}">管理者サイト</a>
+                {% endif %}
+            {% else %}
+                <a href="{% url 'users:login' %}">ログイン</a>
+            {% endif %}
+        </div>
+
+        <h1>掲示板</h1>
+
+        <div class="message-container">
+            {% include 'messages.html' %} {# メッセージ表示用テンプレートをインクルード #}
+        </div>
+
+        {% if user.is_authenticated %}
+        <div class="post-form">
+            <h2>新しい投稿</h2>
+            <form method="POST" action="{% url 'posts:create_post' %}">
+                {% csrf_token %}
+                <div>
+                    <label for="{{ form.title.id_for_label }}">タイトル (任意):</label>
+                    {{ form.title }}
+                </div>
+                <div>
+                    <label for="{{ form.content.id_for_label }}">内容:</label>
+                    {{ form.content }}
+                </div>
+                <button type="submit">投稿する</button>
+            </form>
+        </div>
+        {% else %}
+            <p>投稿するには<a href="{% url 'users:login' %}">ログイン</a>してください。</p>
+        {% endif %}
+
+        <div class="post-list">
+            {% for post in posts %}
+            <div class="post">
+                <h2>{{ post.title|default:"(タイトルなし)" }}</h2>
+                <div class="post-meta">
+                    投稿者: <span class="post-author" style="color: {{ post.author.id_color }};">{{ post.author.username }}@{{ post.author.display_hash }}</span>
+                    <span class="post-date">{{ post.created_at|date:"Y-m-d H:i:s" }}</span>
+                </div>
+                <p class="post-content">{{ post.content }}</p>
+                {% if user.is_authenticated and user.has_permission('manager') %}
+                    <form method="POST" action="{% url 'commands:process_command' %}">
+                        {% csrf_token %}
+                        <input type="hidden" name="command_text" value="/del {{ post.id }}">
+                        <button type="submit" style="background-color: #dc3545; border: none; color: white; padding: 5px 10px; border-radius: 3px; cursor: pointer; margin-top: 10px;">削除 ({{ post.id }})</button>
+                    </form>
+                {% endif %}
+            </div>
+            {% empty %}
+            <p>まだ投稿がありません。</p>
+            {% endfor %}
+        </div>
+    </div>
+</body>
+</html>
