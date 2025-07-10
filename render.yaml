@@ -1,0 +1,56 @@
+# render.yaml
+services:
+  # 1. Django Web Service
+  - type: web
+    name: my-django-bulletin-board-web # あなたのサービス名
+    env: python
+    region: oregon # デプロイ先のリージョン (例: oregon, frankfurt, singapore)。必要に応じて変更してください。
+    buildCommand: |
+      pip install -r requirements.txt
+      python manage.py collectstatic --noinput
+    startCommand: gunicorn config.wsgi:application --log-file -
+    plan: free # または starter, standard
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase: my-django-bulletin-board-db # 下で定義するデータベースの名前と一致させる
+      - key: SECRET_KEY
+        generateValue: true # Renderが自動的に安全なキーを生成
+      - key: WEB_CONCURRENCY # Gunicornのワーカー数（CPUコア数-1が目安）
+        value: 4
+      - key: PYTHON_VERSION
+        value: 3.10.0 # 使用しているPythonのバージョンに合わせる
+      - key: DEBUG
+        value: "False" # 本番環境では必ず False に設定
+      - key: DISABLE_COLLECTSTATIC # デプロイ後に collectstatic を再実行しないようにする
+        value: "1"
+
+  # 2. PostgreSQL Database
+  - type: postgres
+    name: my-django-bulletin-board-db # あなたのデータベース名
+    region: oregon # Webサービスと同じリージョンにする
+    plan: free # または starter
+    databaseName: bulletin_board_db # データベースの名前
+    user: bulletin_board_user # データベースのユーザー名
+    ipAllowList: # データベースへの接続を許可するIPアドレス
+      - 0.0.0.0/0 # 全てのIPからのアクセスを許可 (開発/テスト用、本番ではより制限的推奨)
+      # - your_home_ip/32 # 例: 自宅の固定IPのみ許可したい場合
+
+  # 3. Cron Job for Hourly Post Deletion
+  - type: cron
+    name: hourly-post-deleter # Cronジョブの名前
+    env: python
+    region: oregon # Webサービスと同じリージョンにする
+    schedule: 0 * * * * # 毎時0分に実行 (例: 0 0 * * * は毎日午前0時に実行)
+    buildCommand: |
+      pip install -r requirements.txt
+    startCommand: python delete_all_posts.py
+    envVars:
+      # CronジョブもDjango環境をロードするため、DB_URLとSECRET_KEYが必要
+      - key: DATABASE_URL
+        fromDatabase: my-django-bulletin-board-db
+      - key: SECRET_KEY
+        fromService: my-django-bulletin-board-web # Webサービスで生成されたSECRET_KEYを参照
+      - key: PYTHON_VERSION
+        value: 3.10.0
+      - key: DEBUG
+        value: "False" # CronジョブでもDEBUGはFalseに
